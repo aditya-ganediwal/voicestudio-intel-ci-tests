@@ -1,23 +1,20 @@
-# Intel archive contract — public synthetic tests
+# Intel third-party foundation experiment (NOT production accepted)
 
-This repository tests generic `.tar.gz` packaging behavior on an **actual Intel macOS 15 GitHub-hosted runner**. It does not contain, import, download, or execute VoiceStudio production code, models, or runtime archives.
+This manually dispatched public runner experiment downloads only frozen public conda-forge packages, Node.js and the publicly pinned whisper.cpp revision. It creates a **public third-party foundation**, not an accepted VoiceStudio native archive. It contains no application code, model weights, profiles or private records.
 
-## Scope
+## Required preparation on the owner's Windows machine
 
-- Independent synthetic files resembling executable, library, license, and nested-tree layout
-- SHA-256 and byte-size checks; POSIX executable mode preservation
-- Canonical path-string sorting, comparison regardless of list order, duplicate and unsafe-path rejection
-- Hash, size, mode mismatch diagnostics; archives with altered outer digest are rejected
-- No network runtime dependencies, third-party Python packages, or uploaded artifacts
+1. Copy `scripts/export_public_lock.py` into a separate temporary directory and execute it with the **private** `config/macos-intel-proof.json` as input, writing `public-intel-lock.json` into that temporary directory. Keep the private configuration file private.
+2. Independently inspect `public-intel-lock.json`: it must contain only third-party package URLs, exact versions, SHA-256, sizes, public Node/Whisper pins, and optional Numba TBB hash.
+3. Upload reviewed `public-intel-lock.json` alongside the three files from this ZIP to the public test repo. Do not upload any private configuration or other files. The workflow is **manual only**.
+4. In Actions, choose **Public Intel third-party foundation (not production accepted)** and run on main. Only run once after review.
 
-## Run manually
+## Expected outputs
 
-Open **Actions → Intel synthetic archive contract → Run workflow → main → Run workflow**. The job uses `macos-15-intel` and will be marked green or red. Inspect **Run synthetic archive contract tests** for individual test names.
+A GitHub Actions artifact named `public-intel-third-party-foundation-RUN_ID` contains `public-intel-foundation.tar.gz` and `public-foundation-report.json`. The tar contains `runtime/python/macos-x64` (public conda CPU stack), `runtime/node/macos-x64/bin/node`, `library/whisper/macos-x64/bin/whisper-cli`, `public-third-party-lock.json`, and embedded inventory. **No Nano inference is performed.**
 
-## Local
+## Strict scope limitations
 
-Run `python3 -B tests/test_archive_contract.py -v` with Python 3.11+.
+This draft performs hash-locked input retrieval, CPU imports, architecture checks, synthetic and real-file archive round trips. It does NOT reproduce the private runtime's strict Mach-O closure, TorchAudio relocation repairs, full legal inventory, independent relocated runtime inference or private receipt. It intentionally will not satisfy `assemble-macos-intel.py` production acceptance. The native build may fail due to unsatisfied conda package dependencies, pinned URL availability, or relocation. A green CI build is foundation-only, not a shipping signal. The public archive is visible to anyone; inspect inputs before running.
 
-## Explicit limits
-
-Passing this harness proves only the independent synthetic archive contract on the indicated host, **not** byte-for-byte production compatibility, actual Nano inference, native linker closure, or the customer package. Never add private files, tokens, internal URLs, model weights, or runtime artifact downloads to this public repository.
+**Before any production use:** run an approved private Intel relocation/closure repair and actual twice-relocated inference with the original protected inputs; generate the genuine native receipt. Do not forge a receipt or modify assembler validation.
