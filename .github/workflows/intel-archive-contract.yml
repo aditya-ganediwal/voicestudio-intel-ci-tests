@@ -1,37 +1,41 @@
-name: Intel synthetic archive contract
+name: Public Intel third-party foundation (not production accepted)
 on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: public-intel-foundation
+  cancel-in-progress: false
 jobs:
-  native-intel:
+  native-foundation:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.event.repository.visibility == 'public'
     runs-on: macos-15-intel
-    timeout-minutes: 10
+    timeout-minutes: 100
     steps:
-      - name: Checkout public fixtures only
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Confirm native Intel host
-        shell: bash
+      - name: Prove native host and synthetic round-trip
         run: |
           set -euo pipefail
-          test "$(uname -s)" = Darwin
           test "$(uname -m)" = x86_64
-          python3 --version
-      - name: Run synthetic archive contract tests
-        shell: bash
-        env:
-          PYTHONDONTWRITEBYTECODE: '1'
-          PYTHONNOUSERSITE: '1'
+          python3 scripts/native_foundation.py selftest
+      - name: Build pinned third-party Intel foundation
         run: |
           set -euo pipefail
-          python3 -B tests/test_archive_contract.py -v
-      - name: Final report
-        if: always()
-        shell: bash
+          test -f public-intel-lock.json
+          python3 scripts/native_foundation.py build
+      - name: Report output hashes and inventory
         run: |
-          echo '### Public synthetic Intel archive contract' >> "$GITHUB_STEP_SUMMARY"
-          echo 'Runner: macos-15-intel; independent fixtures only.' >> "$GITHUB_STEP_SUMMARY"
-          echo 'Test outcome is reflected in the job and step status above.' >> "$GITHUB_STEP_SUMMARY"
-          echo 'No private runtime, production code, models, or credentials used.' >> "$GITHUB_STEP_SUMMARY"
+          set -euo pipefail
+          cat out/public-foundation-report.json >> "$GITHUB_STEP_SUMMARY"
+          shasum -a 256 out/public-intel-foundation.tar.gz
+      - name: Upload public third-party foundation only
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-intel-third-party-foundation-${{ github.run_id }}
+          path: |
+            out/public-intel-foundation.tar.gz
+            out/public-foundation-report.json
+          if-no-files-found: error
+          retention-days: 1
