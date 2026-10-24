@@ -63,7 +63,7 @@ def build(lock,out):
     with tarfile.open(pkg/'micromamba.tar.bz2','r:bz2') as t:
         bin_member=t.getmember('bin/micromamba');f=t.extractfile(bin_member);binary=work/'micromamba';binary.write_bytes(f.read());binary.chmod(0o755)
     # @EXPLICIT install uses verified, locally downloaded archives; no solver or floating versions.
-    explicit=work/'explicit.txt';explicit.write_text('@EXPLICIT\n'+''.join((pkg/x['url'].rsplit('/',1)[-1]).as_uri()+'\n' for x in cfg['condaPackages']))
+    explicit=work/'explicit.txt';explicit.write_text('@EXPLICIT\n'+''.join((pkg/x['url'].rsplit('/',1)[-1]).resolve().as_uri()+'\n' for x in cfg['condaPackages']))
     prefix=work/'prefix'
     run(binary,'create','-y','--offline','-p',prefix,'-f',explicit,env={**os.environ,'MAMBA_ROOT_PREFIX':str(work/'mamba')})
     # Verify import and architectures on native host. This step requires full conda closure.
