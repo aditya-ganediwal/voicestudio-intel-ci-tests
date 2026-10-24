@@ -1,0 +1,37 @@
+name: Intel synthetic archive contract
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native-intel:
+    runs-on: macos-15-intel
+    timeout-minutes: 10
+    steps:
+      - name: Checkout public fixtures only
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Confirm native Intel host
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(uname -s)" = Darwin
+          test "$(uname -m)" = x86_64
+          python3 --version
+      - name: Run synthetic archive contract tests
+        shell: bash
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+          PYTHONNOUSERSITE: '1'
+        run: |
+          set -euo pipefail
+          python3 -B tests/test_archive_contract.py -v
+      - name: Final report
+        if: always()
+        shell: bash
+        run: |
+          echo '### Public synthetic Intel archive contract' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Runner: macos-15-intel; independent fixtures only.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Test outcome is reflected in the job and step status above.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'No private runtime, production code, models, or credentials used.' >> "$GITHUB_STEP_SUMMARY"
