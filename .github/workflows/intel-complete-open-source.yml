@@ -1,0 +1,30 @@
+name: Intel open-source Nano dependency completion (stage 1)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  intel-source-wheels:
+    if: github.event_name == 'workflow_dispatch' && github.event.repository.visibility == 'public'
+    runs-on: macos-15-intel
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Reuse existing public foundation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/foundation-download"
+          gh release download intel-foundation-public-v1 --repo aditya-ganediwal/voicestudio-intel-ci-tests --pattern public-intel-foundation.tar.gz --dir "$RUNNER_TEMP/foundation-download"
+          printf '%s  %s\n' '1b7c70ce00e216d62a1eb36713f7b0d5531dbd7cfd7a9337f0c25fd1960d9350' "$RUNNER_TEMP/foundation-download/public-intel-foundation.tar.gz" | shasum -a 256 -c -
+      - name: Build pinned public Nano and Perth wheels and audit dependency plan
+        run: |
+          set -euo pipefail
+          python3 -B scripts/complete_runtime.py --archive "$RUNNER_TEMP/foundation-download/public-intel-foundation.tar.gz" --work "$RUNNER_TEMP/nano-completion"
+      - name: Report checkpoint (no customer artifacts)
+        if: success()
+        run: |
+          cat "$RUNNER_TEMP/nano-completion/report.json" >> "$GITHUB_STEP_SUMMARY"
