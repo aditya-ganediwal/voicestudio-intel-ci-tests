@@ -76,6 +76,7 @@ def main():
     builder=work/'wheel-builder'
     run('python3','-m','venv',builder)
     builder_py=builder/'bin/python3'
+    env['PATH']=str(builder/'bin')+os.pathsep+env.get('PATH','')
     run(builder_py,'-m','pip','install','packaging==26.3','uv_build==0.12.7','setuptools==80.9.0',env=env)
     built=[]
     for name,(url,commit,prefix) in REPOS.items():
