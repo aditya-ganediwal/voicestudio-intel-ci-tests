@@ -101,11 +101,31 @@ def main():
     blocked={'torch','torchaudio','numpy','numba','llvmlite'}
     bad=[x['metadata']['name'] for x in report['install'] if x['metadata']['name'].lower().replace('_','-') in blocked]
     if bad:raise ValueError('pip proposed replacing conda native providers: '+str(bad))
-    # The dry-run is the safe checkpoint. Do not silently label this a
-    # complete/relocated runtime until dependencies are installed and verified.
-    result={'status':'PINNED_SOURCE_WHEELS_BUILT_AND_RESOLVER_AUDITED','native':'macos-x64',
+    # Install dependencies with native core versions constrained. The existing
+    # resolver audit above must pass before installation.
+    probe = """import importlib.metadata as m,json
+print(json.dumps({n:m.version(n) for n in ('torch','torchaudio','numpy','numba','llvmlite')}))"""
+    expected_core={'torch':'2.6.0','torchaudio':'2.6.0','numpy':'1.26.4',
+                   'numba':'0.68.0','llvmlite':'0.50.0'}
+    before=json.loads(subprocess.check_output([str(py),'-I','-c',probe],env=env,text=True))
+    if before!=expected_core:raise ValueError('Pinned Intel core mismatch: '+repr(before))
+    run(py,'-I','-m','pip','install','--constraint',constraint,
+        'chatterbox-tts==0.1.7','resemble-perth==1.1.0',env=env)
+    after=json.loads(subprocess.check_output([str(py),'-I','-c',probe],env=env,text=True))
+    if after!=before:raise ValueError('Pinned Intel core versions changed: '+repr(after))
+    run(py,'-I','-m','pip','check',env=env)
+    smoke="""import importlib,importlib.metadata as m,json
+import torch,torchaudio,numpy,numba,llvmlite
+assert m.version('chatterbox-tts')=='0.1.7'
+assert m.version('resemble-perth')=='1.1.0'
+for name in ('chatterbox','perth'):importlib.import_module(name)
+print(json.dumps({'chatterbox':m.version('chatterbox-tts'),
+                  'perth':m.version('resemble-perth'),'torch':torch.__version__}))"""
+    run(py,'-I','-c',smoke,env=env)
+    result={'status':'INTEL_PYTHON_DEPS_INSTALLED_AND_IMPORT_CHECKED','native':'macos-x64',
             'foundationSha256':EXPECTED,'builtWheels':[{'name':x.name,'sha256':sha(x)} for x in built],
-            'dependenciesToInstall':len(report['install']),'completeRuntime':False,'relocationAccepted':False}
+            'dependenciesPlanned':len(report['install']),'coreVersions':after,
+            'pipCheckPassed':True,'completeRuntime':False,'relocationAccepted':False}
     (work/'report.json').write_text(json.dumps(result,indent=2)+'\n')
     print(json.dumps(result,indent=2))
 
