@@ -73,6 +73,10 @@ def main():
     run(py,'-I','-c','import torch, torchaudio, numba, numpy; print(torch.__version__)')
     env={**os.environ,'PIP_DISABLE_PIP_VERSION_CHECK':'1','PIP_NO_CACHE_DIR':'1','PYTHONNOUSERSITE':'1','PYTHONDONTWRITEBYTECODE':'1'}
     wheels=work/'wheels'; wheels.mkdir()
+    builder=work/'wheel-builder'
+    run('python3','-m','venv',builder)
+    builder_py=builder/'bin/python3'
+    run(builder_py,'-m','pip','install','packaging==26.3','uv_build==0.12.7',env=env)
     built=[]
     for name,(url,commit,prefix) in REPOS.items():
         source=work/name
@@ -80,8 +84,7 @@ def main():
         run('git','-C',source,'checkout','--detach',commit)
         actual=subprocess.check_output(['git','-C',str(source),'rev-parse','HEAD'],text=True).strip()
         if actual != commit: raise ValueError('upstream commit changed')
-        run(py,'-I','-m','pip','install','--no-deps','packaging==26.3','uv_build==0.12.7',env=env)
-        run(py,'-I','-m','pip','wheel','--no-deps','--no-build-isolation','--wheel-dir',wheels,source,env=env)
+        run(builder_py,'-m','pip','wheel','--no-deps','--no-build-isolation','--wheel-dir',wheels,source,env=env)
         candidates=list(wheels.glob(prefix+'*.whl'))
         if len(candidates)!=1: raise ValueError('expected one wheel for '+name)
         built.append(candidates[0])
