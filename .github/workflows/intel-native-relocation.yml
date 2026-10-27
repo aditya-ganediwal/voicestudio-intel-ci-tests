@@ -1,0 +1,46 @@
+name: Intel native relocation candidate (public-only)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  intel-native-relocation:
+    if: github.event_name == 'workflow_dispatch' && github.event.repository.visibility == 'public'
+    runs-on: macos-15-intel
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Download frozen Stage 3 archive (no rebuild)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/stage3"
+          gh run download 40439708257 --repo aditya-ganediwal/voicestudio-intel-ci-tests --name intel-open-source-runtime-candidate --dir "$RUNNER_TEMP/stage3"
+          printf '%s  %s\n' 'c8ab0d72a5e607ce9a296a168ead8307506d7c670315125d1a16907d87a599c6' "$RUNNER_TEMP/stage3/intel-open-source-runtime-candidate.tar.gz" | shasum -a 256 -c -
+      - name: Repair native loader paths and verify second relocation
+        run: |
+          set -euo pipefail
+          python3 -B scripts/public_intel_native_relocate.py --archive "$RUNNER_TEMP/stage3/intel-open-source-runtime-candidate.tar.gz" --work "$RUNNER_TEMP/native-stage4"
+      - name: Save native diagnostics even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: intel-native-stage4-diagnostics
+          path: |
+            ${{ runner.temp }}/native-stage4/native-audit.json
+            ${{ runner.temp }}/native-stage4/stage4-report.json
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Upload native candidate only on success
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: intel-native-stage4-candidate
+          path: |
+            ${{ runner.temp }}/native-stage4/intel-native-repaired-candidate.tar.gz
+            ${{ runner.temp }}/native-stage4/stage4-report.json
+          if-no-files-found: error
+          retention-days: 7
