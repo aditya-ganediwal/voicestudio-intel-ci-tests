@@ -126,6 +126,37 @@ print(json.dumps({'chatterbox':m.version('chatterbox-tts'),
             'foundationSha256':EXPECTED,'builtWheels':[{'name':x.name,'sha256':sha(x)} for x in built],
             'dependenciesPlanned':len(report['install']),'coreVersions':after,
             'pipCheckPassed':True,'completeRuntime':False,'relocationAccepted':False}
+    # Stage 3: public-only archive and independent second-location smoke test.
+    # This does NOT perform private model-backed proof or Mach-O relocation acceptance.
+    # Preserve all payload files, including the conda Python alias trees.
+    candidate=work/'intel-open-source-runtime-candidate.tar.gz'
+    if candidate.exists():raise ValueError('Refuse archive overwrite')
+    with tarfile.open(candidate,'w:gz',format=tarfile.PAX_FORMAT) as t:
+        for f in sorted(root.rglob('*')):
+            if f.is_symlink():raise ValueError('Unexpected symlink in flattened runtime: '+str(f))
+            if f.is_file():
+                rel=f.relative_to(root).as_posix()
+                t.add(f,arcname=rel,recursive=False)
+    second=work/'Second Location With Spaces'
+    second.mkdir()
+    with tarfile.open(candidate,'r:gz') as t:
+        for m in t:
+            name=safe(m.name)
+            if not m.isfile() or m.mode & 0o7000:raise ValueError('Unsafe candidate archive entry')
+            dst=second/name
+            dst.parent.mkdir(parents=True,exist_ok=True)
+            with t.extractfile(m) as src,dst.open('xb') as output:
+                shutil.copyfileobj(src,output)
+            dst.chmod(m.mode & 0o777)
+    second_py=second/'runtime/python/macos-x64/bin/python3'
+    run(second_py,'-I','-c',smoke,env=env)
+    run(second_py,'-I','-m','pip','check',env=env)
+    result.update({'status':'INTEL_PUBLIC_ARCHIVE_SECOND_LOCATION_IMPORT_PASSED',
+        'candidateArchive':candidate.name,
+        'candidateSha256':sha(candidate),'candidateSizeBytes':candidate.stat().st_size,
+        'secondLocationImportPassed':True,'secondLocationPipCheckPassed':True,
+        'completeRuntime':False,'relocationAccepted':False,
+        'disclaimer':'Provisional open-source archive only; no model-backed proof, native closure or licensed production acceptance'})
     (work/'report.json').write_text(json.dumps(result,indent=2)+'\n')
     print(json.dumps(result,indent=2))
 

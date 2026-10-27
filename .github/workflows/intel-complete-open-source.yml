@@ -1,4 +1,4 @@
-name: Intel open-source Nano dependency completion (stage 1)
+name: Intel open-source Nano dependency completion (stage 3)
 on:
   workflow_dispatch:
 permissions:
@@ -24,7 +24,17 @@ jobs:
         run: |
           set -euo pipefail
           python3 -B scripts/complete_runtime.py --archive "$RUNNER_TEMP/foundation-download/public-intel-foundation.tar.gz" --work "$RUNNER_TEMP/nano-completion"
-      - name: Report checkpoint (no customer artifacts)
+      - name: Upload public-only provisional archive
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: intel-open-source-runtime-candidate
+          path: |
+            ${{ runner.temp }}/nano-completion/intel-open-source-runtime-candidate.tar.gz
+            ${{ runner.temp }}/nano-completion/report.json
+          if-no-files-found: error
+          retention-days: 7
+      - name: Report checkpoint (not customer-ready)
         if: success()
         run: |
           cat "$RUNNER_TEMP/nano-completion/report.json" >> "$GITHUB_STEP_SUMMARY"
