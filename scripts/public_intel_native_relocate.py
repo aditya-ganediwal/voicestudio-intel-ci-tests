@@ -35,6 +35,11 @@ def machos(root):
 def deps(p):return [x.strip().split(' (compatibility')[0] for x in cmd('/usr/bin/otool','-L',p).splitlines()[1:] if x.strip()]
 def rpaths(p):return re.findall(r'cmd LC_RPATH\s+cmdsize \d+\s+path (.+?) \(offset',cmd('/usr/bin/otool','-l',p))
 
+def install_id(p):
+    # otool -L includes LC_ID_DYLIB. That ID requires -id, not -change.
+    lines=cmd('/usr/bin/otool','-D',p).splitlines()
+    return lines[1].strip() if len(lines)>1 else None
+
 def allowed(d):return d.startswith(('/System/Library/','/usr/lib/'))
 
 def provider(dep,root):
@@ -73,7 +78,15 @@ def scan(root,repair=False):
                 arches=set(cmd('/usr/bin/lipo','-archs',p).split())
             if arches!={'x86_64'}:
                 errors.append({'file':rel,'issue':'unexpected architecture','arches':sorted(arches)});continue
+            identity=install_id(p) if p.suffix=='.dylib' else None
+            if identity and identity.startswith('/') and not allowed(identity):
+                before+=1
+                if provider(identity,root)!=p:
+                    errors.append({'file':rel,'issue':'own dylib ID maps elsewhere','identity':identity})
+                else:
+                    args+=['-id','@loader_path/'+p.name]
             for dep in deps(p):
+                if dep==identity:continue
                 if not dep.startswith('/') or allowed(dep):continue
                 before+=1
                 target=provider(dep,root)
