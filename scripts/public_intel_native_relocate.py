@@ -38,6 +38,14 @@ def rpaths(p):return re.findall(r'cmd LC_RPATH\s+cmdsize \d+\s+path (.+?) \(offs
 def allowed(d):return d.startswith(('/System/Library/','/usr/lib/'))
 
 def provider(dep,root):
+    # Pip macOS wheels embed /DLC/<package>/.dylibs/<name> in load commands.
+    # Resolve only against the same installed package, never by loose basename.
+    if dep.startswith('/DLC/'):
+        rel=dep[len('/DLC/'):]
+        if not rel or '..' in Path(rel).parts:
+            return None
+        target=root/PREFIX/'lib/python3.11/site-packages'/rel
+        return target if target.is_file() else None
     marker='/runtime/python/macos-x64/'
     if marker in dep:return root/PREFIX/dep.split(marker,1)[1]
     if '/lib/' in dep:return root/PREFIX/'lib'/dep.split('/lib/',1)[1]
@@ -49,6 +57,20 @@ def scan(root,repair=False):
         total+=1; rel=p.relative_to(root).as_posix(); args=[]
         try:
             arches=set(cmd('/usr/bin/lipo','-archs',p).split())
+            if arches=={'x86_64','arm64'} and repair:
+                # Universal2 is compatible with Intel, but the release contract
+                # requires strictly x86_64 Mach-O payloads.
+                thin=p.with_name(p.name+'.x64-thin-temp')
+                try:
+                    cmd('/usr/bin/lipo',p,'-thin','x86_64','-output',thin)
+                    thin.chmod(p.stat().st_mode & 0o777)
+                    os.replace(thin,p)
+                    cmd('/usr/bin/codesign','--force','--sign','-',p)
+                    cmd('/usr/bin/codesign','--verify','--strict',p)
+                    changes.append(rel+' [thinned x86_64]')
+                finally:
+                    if thin.exists():thin.unlink()
+                arches=set(cmd('/usr/bin/lipo','-archs',p).split())
             if arches!={'x86_64'}:
                 errors.append({'file':rel,'issue':'unexpected architecture','arches':sorted(arches)});continue
             for dep in deps(p):
